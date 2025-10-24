@@ -35,8 +35,9 @@ export default function FullDayScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const resetPulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Load punch history and run intro animation
+  // Load history + intro animation
   useEffect(() => {
     const history = loadPunchHistory();
     setPunchHistory(history);
@@ -76,7 +77,7 @@ export default function FullDayScreen() {
     }
   }, [punchInTime]);
 
-  // 🔔 Schedule notification
+  // 🔔 Notification
   const scheduleNotification = async (secondsFromNow: number) => {
     await notifee.createChannel({ id: 'default', name: 'Default Channel' });
     const date = new Date(Date.now() + secondsFromNow * 1000);
@@ -84,7 +85,6 @@ export default function FullDayScreen() {
       type: TriggerType.TIMESTAMP,
       timestamp: date.getTime(),
     };
-
     await notifee.createTriggerNotification(
       {
         title: 'TimeSnap',
@@ -110,27 +110,17 @@ export default function FullDayScreen() {
     ]).start();
   };
 
-  // 🕐 Handle Punch In
+  // 🕐 Punch In
   const handlePunchIn = async () => {
     animateButton();
     const now = new Date();
     const outTime = new Date(now.getTime() + 8.5 * 60 * 60 * 1000);
-
     setPunchInTime(now);
     setPunchOutTime(outTime);
-      const secondsUntilOut = Math.max(0, Math.floor((outTime.getTime() - now.getTime()) / 1000));
-
-  await scheduleNotification(secondsUntilOut);
-    // await scheduleNotification(10); // for testing
-
-    savePunchRecord({
-      type: 'fullDay',
-      punchIn: now.toISOString(),
-      punchOut: outTime.toISOString(),
-    });
-
+    const secondsUntilOut = Math.max(0, Math.floor((outTime.getTime() - now.getTime()) / 1000));
+    await scheduleNotification(secondsUntilOut);
+    savePunchRecord({ type: 'fullDay', punchIn: now.toISOString(), punchOut: outTime.toISOString() });
     setPunchHistory(loadPunchHistory());
-
     Alert.alert(
       '✓ Punched In',
       `You punched in at ${now.toLocaleTimeString([], {
@@ -150,18 +140,10 @@ export default function FullDayScreen() {
     const now = new Date();
     const inTime = new Date(now);
     inTime.setHours(hours, minutes, 0, 0);
-
     const outTime = new Date(inTime.getTime() + 8.5 * 60 * 60 * 1000);
-
-    savePunchRecord({
-      type: 'fullDay',
-      punchIn: inTime.toISOString(),
-      punchOut: outTime.toISOString(),
-    });
-
+    savePunchRecord({ type: 'fullDay', punchIn: inTime.toISOString(), punchOut: outTime.toISOString() });
     setPunchHistory(loadPunchHistory());
     setShowPicker(false);
-
     Alert.alert(
       '✓ Added',
       `Manual Punch In: ${inTime.toLocaleTimeString([], {
@@ -176,7 +158,7 @@ export default function FullDayScreen() {
     );
   };
 
-  // 🧹 Clear All History (fixed)
+  // 🧹 Clear History
   const handleClearHistory = () => {
     Alert.alert('Confirm Delete', 'Delete all punch history?', [
       { text: 'Cancel', style: 'cancel' },
@@ -184,7 +166,7 @@ export default function FullDayScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: () => {
-          storage.clearAll(); // ✅ clear all keys
+          storage.clearAll();
           setPunchHistory([]);
           Alert.alert('Cleared', 'All punch history deleted.');
         },
@@ -192,37 +174,41 @@ export default function FullDayScreen() {
     ]);
   };
 
+  // 🔄 Reset current punch
+  const handleResetPunch = () => {
+    if (!punchInTime) return Alert.alert('No Active Punch', 'You have not punched in yet.');
+    Animated.sequence([
+      Animated.timing(resetPulseAnim, { toValue: 0.9, duration: 100, useNativeDriver: true }),
+      Animated.spring(resetPulseAnim, { toValue: 1, friction: 3, useNativeDriver: true }),
+    ]).start();
+    Alert.alert('Confirm Reset', 'Reset current punch in/out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reset',
+        style: 'destructive',
+        onPress: () => {
+          setPunchInTime(null);
+          setPunchOutTime(null);
+          Alert.alert('Reset Done', 'Punch times cleared.');
+        },
+      },
+    ]);
+  };
+
   return (
     <PaperProvider>
-      {/* 🎨 Changed pink gradient to blue-green */}
       <LinearGradient colors={['#667eea', '#00c6ff', '#2af598']} style={styles.gradient}>
         <ScrollView contentContainerStyle={styles.container}>
-          <Animated.View
-            style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-          >
+          <Animated.View style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <Text style={styles.title}>Full Day</Text>
             <Text style={styles.subtitle}>8.5 Hours Work Schedule</Text>
           </Animated.View>
 
-          <Animated.View
-            style={[
-              styles.punchCard,
-              { opacity: fadeAnim, transform: [{ scale: punchInTime ? pulseAnim : 1 }] },
-            ]}
-          >
+          <Animated.View style={[styles.punchCard, { opacity: fadeAnim, transform: [{ scale: punchInTime ? pulseAnim : 1 }] }]}>
             {!punchInTime ? (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={handlePunchIn}
-                style={styles.punchButton}
-              >
+              <TouchableOpacity activeOpacity={0.8} onPress={handlePunchIn} style={styles.punchButton}>
                 <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-                  <LinearGradient
-                    colors={['#4facfe', '#00f2fe']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientButton}
-                  >
+                  <LinearGradient colors={['#4facfe', '#00f2fe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradientButton}>
                     <Text style={styles.punchButtonText}>🕐 Punch In Now</Text>
                   </LinearGradient>
                 </Animated.View>
@@ -232,37 +218,35 @@ export default function FullDayScreen() {
                 <View style={styles.timeBox}>
                   <Text style={styles.timeLabel}>Punched In</Text>
                   <Text style={styles.timeValue}>
-                    {punchInTime.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true,
-                    })}
+                    {punchInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                   </Text>
                 </View>
                 <View style={styles.divider} />
                 <View style={styles.timeBox}>
                   <Text style={styles.timeLabel}>Expected Out</Text>
                   <Text style={styles.timeValue}>
-                    {punchOutTime?.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true,
-                    })}
+                    {punchOutTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                   </Text>
                 </View>
               </View>
             )}
           </Animated.View>
 
-          <Animated.View
-            style={[styles.manualCard, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-          >
+          {/* 🔄 Reset Button */}
+          {punchInTime && (
+            <Animated.View style={{ transform: [{ scale: resetPulseAnim }] }}>
+              <TouchableOpacity onPress={handleResetPunch} activeOpacity={0.8} style={styles.resetButton}>
+                <LinearGradient colors={['#ff758c', '#ff7eb3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.resetGradient}>
+                  <Text style={styles.resetText}>🔄 Reset</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {/* Manual Add */}
+          <Animated.View style={[styles.manualCard, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <Text style={styles.cardTitle}>⚙️ Manual Entry</Text>
-            <TouchableOpacity
-              style={styles.manualButton}
-              onPress={() => setShowPicker(true)}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={styles.manualButton} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
               <Text style={styles.manualButtonText}>Select Punch In Time</Text>
               <Text style={styles.arrow}>→</Text>
             </TouchableOpacity>
@@ -277,6 +261,7 @@ export default function FullDayScreen() {
             label="Select Punch In Time"
           />
 
+          {/* History */}
           <Animated.View style={[styles.historyCard, { opacity: fadeAnim }]}>
             <View style={styles.historyHeader}>
               <View>
@@ -296,9 +281,9 @@ export default function FullDayScreen() {
                 <Text style={styles.emptyText}>No history found</Text>
               </View>
             ) : (
-              punchHistory.map((record, index) => (
+              punchHistory.map((record, i) => (
                 <Animated.View
-                  key={index}
+                  key={i}
                   style={[
                     styles.historyItem,
                     {
@@ -316,34 +301,22 @@ export default function FullDayScreen() {
                 >
                   <View style={styles.historyItemHeader}>
                     <View style={styles.typeBadge}>
-                      <Text style={styles.typeBadgeText}>
-                        {record.type === 'fullDay' ? 'Full Day' : record.type}
-                      </Text>
+                      <Text style={styles.typeBadgeText}>{record.type === 'fullDay' ? 'Full Day' : record.type}</Text>
                     </View>
-                    <Text style={styles.historyDate}>
-                      {new Date(record.punchIn).toLocaleDateString()}
-                    </Text>
+                    <Text style={styles.historyDate}>{new Date(record.punchIn).toLocaleDateString()}</Text>
                   </View>
                   <View style={styles.historyTimes}>
                     <View style={styles.historyTimeItem}>
                       <Text style={styles.historyTimeLabel}>In</Text>
                       <Text style={styles.historyTimeValue}>
-                        {new Date(record.punchIn).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true,
-                        })}
+                        {new Date(record.punchIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                       </Text>
                     </View>
                     <Text style={styles.historyArrow}>→</Text>
                     <View style={styles.historyTimeItem}>
                       <Text style={styles.historyTimeLabel}>Out</Text>
                       <Text style={styles.historyTimeValue}>
-                        {new Date(record.punchOut).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true,
-                        })}
+                        {new Date(record.punchOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                       </Text>
                     </View>
                   </View>
@@ -359,12 +332,7 @@ export default function FullDayScreen() {
 
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
-  container: {
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-  },
+  container: { flexGrow: 1, alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
   header: { alignItems: 'center', marginBottom: 30 },
   title: { fontSize: 36, fontWeight: '800', color: '#fff', letterSpacing: 1 },
   subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 5 },
@@ -392,15 +360,26 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   punchButtonText: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  timeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
+  timeInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
   timeBox: { alignItems: 'center', flex: 1 },
   timeLabel: { fontSize: 12, color: '#888', marginBottom: 8, fontWeight: '600' },
   timeValue: { fontSize: 28, fontWeight: '800', color: '#667eea' },
   divider: { width: 2, height: 50, backgroundColor: '#e0e0e0', marginHorizontal: 10 },
+
+  // 🔄 Reset Button Styles
+  resetButton: { width: width - 200, marginBottom: 20 },
+  resetGradient: {
+    paddingVertical: 12,
+    borderRadius: 30,
+    alignItems: 'center',
+    shadowColor: '#ff7eb3',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  resetText: { fontSize: 16, color: '#fff', fontWeight: '700' },
+
   manualCard: {
     width: width - 40,
     backgroundColor: 'rgba(255,255,255,0.95)',
@@ -445,12 +424,7 @@ const styles = StyleSheet.create({
   },
   historyTitle: { fontSize: 20, fontWeight: '700', color: '#333' },
   historySubtitle: { fontSize: 12, color: '#888', marginTop: 2 },
-  clearButton: {
-    backgroundColor: '#ffe5e5',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
+  clearButton: { backgroundColor: '#ffe5e5', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
   clearText: { color: '#ff4444', fontWeight: '700', fontSize: 14 },
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyIcon: { fontSize: 48, marginBottom: 10 },
@@ -466,24 +440,19 @@ const styles = StyleSheet.create({
   historyItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   typeBadge: {
     backgroundColor: '#667eea',
     paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
-  typeBadgeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  historyDate: { fontSize: 13, color: '#888', fontWeight: '500' },
-  historyTimes: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
+  typeBadgeText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  historyDate: { fontSize: 12, color: '#999' },
+  historyTimes: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
   historyTimeItem: { alignItems: 'center' },
-  historyTimeLabel: { fontSize: 11, color: '#888', marginBottom: 4 },
+  historyTimeLabel: { fontSize: 12, color: '#777', marginBottom: 4 },
   historyTimeValue: { fontSize: 18, fontWeight: '700', color: '#333' },
-  historyArrow: { fontSize: 20, color: '#ccc', marginHorizontal: 10 },
+  historyArrow: { fontSize: 20, color: '#f5576c', fontWeight: '700' },
 });

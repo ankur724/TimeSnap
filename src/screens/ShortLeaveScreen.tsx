@@ -71,10 +71,9 @@ export default function ShortLeaveScreen() {
     const outTime = calculatePunchOut(now);
     setPunchInTime(now);
     setPunchOutTime(outTime);
-  const secondsUntilOut = Math.max(0, Math.floor((outTime.getTime() - now.getTime()) / 1000));
+    const secondsUntilOut = Math.max(0, Math.floor((outTime.getTime() - now.getTime()) / 1000));
 
-  await scheduleNotification(secondsUntilOut);
-    // await scheduleNotification(10);
+    await scheduleNotification(secondsUntilOut);
 
     await savePunchRecord({
       type: 'shortLeave',
@@ -88,7 +87,7 @@ export default function ShortLeaveScreen() {
 
     Alert.alert(
       '✓ Punched In',
-      `You punched in at ${now.toLocaleTimeString()}\nExpected Punch Out: ${outTime.toLocaleTimeString()}`
+      `You punched in at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}\nExpected Punch Out: ${outTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`
     );
   };
 
@@ -111,8 +110,14 @@ export default function ShortLeaveScreen() {
 
     Alert.alert(
       '✓ Added',
-      `Manual Punch In: ${inTime.toLocaleTimeString()}\nExpected Punch Out: ${outTime.toLocaleTimeString()}`
+      `Manual Punch In: ${inTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}\nExpected Punch Out: ${outTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`
     );
+  };
+
+  const handleReset = () => {
+    setPunchInTime(null);
+    setPunchOutTime(null);
+    Alert.alert('Reset', 'Punch In/Out reset successfully.');
   };
 
   const handleClearHistory = () => {
@@ -159,11 +164,7 @@ export default function ShortLeaveScreen() {
                   />
                 </View>
 
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={handlePunchIn}
-                  style={styles.punchButton}
-                >
+                <TouchableOpacity activeOpacity={0.8} onPress={handlePunchIn} style={styles.punchButton}>
                   <LinearGradient
                     colors={['#f093fb', '#f5576c']}
                     start={{ x: 0, y: 0 }}
@@ -179,16 +180,21 @@ export default function ShortLeaveScreen() {
                 <View style={styles.timeBox}>
                   <Text style={styles.timeLabel}>Punched In</Text>
                   <Text style={styles.timeValue}>
-                    {punchInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {punchInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                   </Text>
                 </View>
                 <View style={styles.divider} />
                 <View style={styles.timeBox}>
                   <Text style={styles.timeLabel}>Expected Out</Text>
                   <Text style={styles.timeValue}>
-                    {punchOutTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {punchOutTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                   </Text>
                 </View>
+
+                {/* Reset Button */}
+                <TouchableOpacity onPress={handleReset} style={styles.resetButton}>
+                  <Text style={styles.resetText}>Reset</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -249,6 +255,7 @@ export default function ShortLeaveScreen() {
                       {new Date(record.punchIn).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
+                        hour12: true,
                       })}
                     </Text>
                   </View>
@@ -259,6 +266,7 @@ export default function ShortLeaveScreen() {
                       {new Date(record.punchOut).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
+                        hour12: true,
                       })}
                     </Text>
                   </View>
@@ -274,12 +282,7 @@ export default function ShortLeaveScreen() {
 
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
-  container: {
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-  },
+  container: { flexGrow: 1, alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
   header: { alignItems: 'center', marginBottom: 30 },
   icon: { fontSize: 48, marginBottom: 10 },
   title: { fontSize: 36, fontWeight: '800', color: '#fff', letterSpacing: 1 },
@@ -296,18 +299,8 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
-  selectLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#555',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  dropdown: {
-    borderColor: '#e0e0e0',
-    borderRadius: 12,
-    backgroundColor: '#f9f9f9',
-  },
+  selectLabel: { fontSize: 16, fontWeight: '600', color: '#555', marginBottom: 12, textAlign: 'center' },
+  dropdown: { borderColor: '#e0e0e0', borderRadius: 12, backgroundColor: '#f9f9f9' },
   dropdownContainer: { borderColor: '#e0e0e0', borderRadius: 12 },
   dropdownText: { fontSize: 16, fontWeight: '500' },
   dropdownPlaceholder: { color: '#999' },
@@ -323,11 +316,20 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   punchButtonText: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  timeInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  timeInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', flexWrap: 'wrap' },
   timeBox: { alignItems: 'center', flex: 1 },
   timeLabel: { fontSize: 12, color: '#888', marginBottom: 8, fontWeight: '600' },
   timeValue: { fontSize: 28, fontWeight: '800', color: '#f5576c' },
   divider: { width: 2, height: 50, backgroundColor: '#e0e0e0', marginHorizontal: 10 },
+  resetButton: {
+    marginTop: 15,
+    backgroundColor: '#ffe5e5',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignSelf: 'center',
+  },
+  resetText: { color: '#ff4444', fontWeight: '700', fontSize: 14 },
   manualCard: {
     width: width - 40,
     backgroundColor: 'rgba(255,255,255,0.95)',

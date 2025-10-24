@@ -17,7 +17,6 @@ import { savePunchRecord, loadPunchHistory } from '../utils/storage';
 import { MMKV } from 'react-native-mmkv';
 import LinearGradient from 'react-native-linear-gradient';
 
-
 const storage = new MMKV();
 const { width } = Dimensions.get('window');
 
@@ -137,8 +136,7 @@ export default function HalfDayScreen() {
     setPunchOutTime(outTime);
     const secondsUntilOut = Math.max(0, Math.floor((outTime.getTime() - now.getTime()) / 1000));
 
-  await scheduleNotification(secondsUntilOut);
-    // await scheduleNotification(10);
+    await scheduleNotification(secondsUntilOut);
 
     await savePunchRecord({
       type: 'halfDay',
@@ -151,7 +149,15 @@ export default function HalfDayScreen() {
 
     Alert.alert(
       '✓ Punched In',
-      `You punched in at ${now.toLocaleTimeString()}\nExpected Punch Out: ${outTime.toLocaleTimeString()}`
+      `You punched in at ${now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })}\nExpected Punch Out: ${outTime.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })}`
     );
   };
 
@@ -175,7 +181,15 @@ export default function HalfDayScreen() {
 
     Alert.alert(
       '✓ Added',
-      `Manual Punch In: ${inTime.toLocaleTimeString()}\nExpected Punch Out: ${outTime.toLocaleTimeString()}`
+      `Manual Punch In: ${inTime.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })}\nExpected Punch Out: ${outTime.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })}`
     );
   };
 
@@ -192,6 +206,12 @@ export default function HalfDayScreen() {
         },
       },
     ]);
+  };
+
+  const handleResetPunch = () => {
+    setPunchInTime(null);
+    setPunchOutTime(null);
+    Alert.alert('Reset', 'Punch In/Out reset successfully.');
   };
 
   const spin = rotateAnim.interpolate({
@@ -268,6 +288,7 @@ export default function HalfDayScreen() {
                 {punchInTime.toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
+                  hour12: true,
                 })}
               </Text>
             </View>
@@ -278,9 +299,13 @@ export default function HalfDayScreen() {
                 {punchOutTime?.toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
+                  hour12: true,
                 })}
               </Text>
             </View>
+            <TouchableOpacity onPress={handleResetPunch} style={styles.resetButton}>
+              <Text style={styles.resetText}>Reset</Text>
+            </TouchableOpacity>
           </View>
         )}
       </Animated.View>
@@ -343,7 +368,7 @@ export default function HalfDayScreen() {
           data={punchHistory}
           keyExtractor={(item, index) => index.toString()}
           ListHeaderComponent={renderHeader}
-          renderItem={({ item, index }) => (
+          renderItem={({ item }) => (
             <Animated.View
               style={[
                 styles.historyItem,
@@ -375,6 +400,7 @@ export default function HalfDayScreen() {
                     {new Date(item.punchIn).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
+                      hour12: true,
                     })}
                   </Text>
                 </View>
@@ -385,6 +411,7 @@ export default function HalfDayScreen() {
                     {new Date(item.punchOut).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
+                      hour12: true,
                     })}
                   </Text>
                 </View>
@@ -451,11 +478,25 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   punchButtonText: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  timeInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  timeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+  },
   timeBox: { alignItems: 'center', flex: 1 },
   timeLabel: { fontSize: 12, color: '#888', marginBottom: 8, fontWeight: '600' },
   timeValue: { fontSize: 28, fontWeight: '800', color: '#f5576c' },
   divider: { width: 2, height: 50, backgroundColor: '#e0e0e0', marginHorizontal: 10 },
+  resetButton: {
+    backgroundColor: '#ffe5e5',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignSelf: 'center',
+    marginTop: 10,
+  },
+  resetText: { color: '#ff4444', fontWeight: '700', fontSize: 14 },
   manualCard: {
     width: width - 40,
     backgroundColor: 'rgba(255,255,255,0.95)',
@@ -497,43 +538,46 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   historyTitle: { fontSize: 20, fontWeight: '700', color: '#333' },
-  historySubtitle: { fontSize: 12, color: '#888', marginTop: 2 },
+  historySubtitle: { fontSize: 13, color: '#999', marginTop: 2 },
   clearButton: {
     backgroundColor: '#ffe5e5',
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 8,
   },
-  clearText: { color: '#ff4444', fontWeight: '700', fontSize: 14 },
-  emptyState: { alignItems: 'center', paddingVertical: 40, width: width - 40 },
-  emptyIcon: { fontSize: 48, marginBottom: 10 },
-  emptyText: { fontSize: 16, color: '#888' },
+  clearText: { color: '#ff4444', fontWeight: '700', fontSize: 12 },
+  emptyState: { alignItems: 'center', marginTop: 30 },
+  emptyIcon: { fontSize: 40, marginBottom: 10 },
+  emptyText: { fontSize: 16, color: '#777' },
   historyItem: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#f5576c',
     width: width - 40,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 15,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
+    shadowRadius: 10,
+    elevation: 5,
   },
   historyItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  typeBadge: { backgroundColor: '#f5576c', paddingVertical: 4, paddingHorizontal: 12, borderRadius: 6 },
-  typeBadgeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  historyDate: { fontSize: 13, color: '#888', fontWeight: '500' },
+  typeBadge: {
+    backgroundColor: '#f093fb',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  typeBadgeText: { fontSize: 12, color: '#fff', fontWeight: '700' },
+  historyDate: { fontSize: 12, color: '#999', fontWeight: '600' },
   historyTimes: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
   historyTimeItem: { alignItems: 'center' },
-  historyTimeLabel: { fontSize: 11, color: '#888', marginBottom: 4 },
+  historyTimeLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
   historyTimeValue: { fontSize: 18, fontWeight: '700', color: '#333' },
-  historyArrow: { fontSize: 20, color: '#ccc', marginHorizontal: 10 },
+  historyArrow: { fontSize: 20, fontWeight: '700', color: '#f5576c' },
 });
