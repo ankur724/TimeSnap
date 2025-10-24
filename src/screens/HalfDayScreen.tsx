@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  Button,
   Alert,
   StyleSheet,
-  TouchableOpacity,
   FlatList,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { TimePickerModal } from 'react-native-paper-dates';
@@ -14,8 +15,11 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import notifee, { TimestampTrigger, TriggerType } from '@notifee/react-native';
 import { savePunchRecord, loadPunchHistory } from '../utils/storage';
 import { MMKV } from 'react-native-mmkv';
+import LinearGradient from 'react-native-linear-gradient';
+
 
 const storage = new MMKV();
+const { width } = Dimensions.get('window');
 
 type PunchRecord = {
   type: 'fullDay' | 'halfDay' | 'shortLeave';
@@ -29,11 +33,17 @@ export default function HalfDayScreen() {
   const [half, setHalf] = useState<'firstHalf' | 'secondHalf'>('firstHalf');
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([
-    { label: 'First Half', value: 'firstHalf' },
-    { label: 'Second Half', value: 'secondHalf' },
+    { label: '🌅 First Half (4h)', value: 'firstHalf' },
+    { label: '🌆 Second Half (4.5h)', value: 'secondHalf' },
   ]);
   const [punchHistory, setPunchHistory] = useState<PunchRecord[]>([]);
   const [showPicker, setShowPicker] = useState(false);
+
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -41,7 +51,48 @@ export default function HalfDayScreen() {
       setPunchHistory(history);
     };
     fetchHistory();
+
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 3000,
+        useNativeDriver: true,
+      })
+    ).start();
   }, []);
+
+  useEffect(() => {
+    if (punchInTime) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.05,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  }, [punchInTime]);
 
   const scheduleNotification = async (secondsFromNow: number) => {
     await notifee.createChannel({ id: 'default', name: 'Default Channel' });
@@ -61,15 +112,33 @@ export default function HalfDayScreen() {
     );
   };
 
+  const animateButton = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   const handlePunchIn = async () => {
+    animateButton();
     const now = new Date();
     const hoursToWork = half === 'firstHalf' ? 4 : 4.5;
     const outTime = new Date(now.getTime() + hoursToWork * 60 * 60 * 1000);
 
     setPunchInTime(now);
     setPunchOutTime(outTime);
+    const secondsUntilOut = Math.max(0, Math.floor((outTime.getTime() - now.getTime()) / 1000));
 
-    await scheduleNotification(10);
+  await scheduleNotification(secondsUntilOut);
+    // await scheduleNotification(10);
 
     await savePunchRecord({
       type: 'halfDay',
@@ -81,7 +150,7 @@ export default function HalfDayScreen() {
     setPunchHistory(history);
 
     Alert.alert(
-      'Punched In',
+      '✓ Punched In',
       `You punched in at ${now.toLocaleTimeString()}\nExpected Punch Out: ${outTime.toLocaleTimeString()}`
     );
   };
@@ -105,7 +174,7 @@ export default function HalfDayScreen() {
     setShowPicker(false);
 
     Alert.alert(
-      'Added',
+      '✓ Added',
       `Manual Punch In: ${inTime.toLocaleTimeString()}\nExpected Punch Out: ${outTime.toLocaleTimeString()}`
     );
   };
@@ -125,47 +194,116 @@ export default function HalfDayScreen() {
     ]);
   };
 
-  // Render the top section above history
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
   const renderHeader = () => (
     <View style={{ alignItems: 'center' }}>
-      <Text style={styles.title}>Half Day</Text>
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <Animated.Text style={[styles.icon, { transform: [{ rotate: spin }] }]}>
+          ⏰
+        </Animated.Text>
+        <Text style={styles.title}>Half Day</Text>
+        <Text style={styles.subtitle}>Flexible Work Schedule</Text>
+      </Animated.View>
 
-      {!punchInTime && (
-        <>
-          <Text style={{ marginBottom: 10 }}>Select Half:</Text>
-          <DropDownPicker
-            open={open}
-            value={half}
-            items={items}
-            setOpen={setOpen}
-            setValue={setHalf}
-            setItems={setItems}
-            containerStyle={{ width: 200, marginBottom: 20, zIndex: 1000 }}
-          />
-          <Button title="Punch In (Now)" onPress={handlePunchIn} />
-        </>
-      )}
+      <Animated.View
+        style={[
+          styles.punchCard,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: punchInTime ? pulseAnim : 1 }],
+          },
+        ]}
+      >
+        {!punchInTime ? (
+          <>
+            <Text style={styles.selectLabel}>Select Your Half</Text>
+            <View style={{ zIndex: 1000, marginBottom: 20 }}>
+              <DropDownPicker
+                open={open}
+                value={half}
+                items={items}
+                setOpen={setOpen}
+                setValue={setHalf}
+                setItems={setItems}
+                style={styles.dropdown}
+                dropDownContainerStyle={styles.dropdownContainer}
+                textStyle={styles.dropdownText}
+                placeholderStyle={styles.dropdownPlaceholder}
+              />
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handlePunchIn}
+              style={styles.punchButton}
+            >
+              <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                <LinearGradient
+                  colors={['#f093fb', '#f5576c']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.gradientButton}
+                >
+                  <Text style={styles.punchButtonText}>🕐 Punch In Now</Text>
+                </LinearGradient>
+              </Animated.View>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={styles.timeInfo}>
+            <View style={styles.timeBox}>
+              <Text style={styles.timeLabel}>Punched In</Text>
+              <Text style={styles.timeValue}>
+                {punchInTime.toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.timeBox}>
+              <Text style={styles.timeLabel}>Expected Out</Text>
+              <Text style={styles.timeValue}>
+                {punchOutTime?.toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
+            </View>
+          </View>
+        )}
+      </Animated.View>
 
-      {punchInTime && (
-        <>
-          <Text style={styles.info}>
-            Punched In: {punchInTime.toLocaleTimeString()}
-          </Text>
-          <Text style={styles.info}>
-            Expected Punch Out: {punchOutTime?.toLocaleTimeString()}
-          </Text>
-        </>
-      )}
-
-      <View style={styles.manualContainer}>
-        <Text style={[styles.title, { fontSize: 20 }]}>Manual Entry</Text>
+      <Animated.View
+        style={[
+          styles.manualCard,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <Text style={styles.cardTitle}>⚙️ Manual Entry</Text>
         <TouchableOpacity
-          style={styles.dateButton}
+          style={styles.manualButton}
           onPress={() => setShowPicker(true)}
+          activeOpacity={0.7}
         >
-          <Text style={styles.dateButtonText}>Select Punch In Time</Text>
+          <Text style={styles.manualButtonText}>Select Punch In Time</Text>
+          <Text style={styles.arrow}>→</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       <TimePickerModal
         visible={showPicker}
@@ -176,73 +314,226 @@ export default function HalfDayScreen() {
         label="Select Punch In Time"
       />
 
-      <View style={styles.historyHeader}>
-        <Text style={[styles.title, { fontSize: 22 }]}>
-          Last 5 Days Punch History
-        </Text>
+      <View style={styles.historyHeaderContainer}>
+        <View>
+          <Text style={styles.historyTitle}>📊 Recent History</Text>
+          <Text style={styles.historySubtitle}>Last 5 days</Text>
+        </View>
         {punchHistory.length > 0 && (
-          <TouchableOpacity onPress={handleClearHistory}>
-            <Text style={styles.deleteText}>Clear</Text>
+          <TouchableOpacity onPress={handleClearHistory} style={styles.clearButton}>
+            <Text style={styles.clearText}>Clear All</Text>
           </TouchableOpacity>
         )}
       </View>
+
+      {punchHistory.length === 0 && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>📭</Text>
+          <Text style={styles.emptyText}>No history found</Text>
+        </View>
+      )}
     </View>
   );
 
   return (
     <PaperProvider>
-      <FlatList
-        contentContainerStyle={styles.container}
-        data={punchHistory}
-        keyExtractor={(item, index) => index.toString()}
-        ListHeaderComponent={renderHeader}
-        renderItem={({ item }) => (
-          <View style={styles.historyItem}>
-            <Text>Type: {item.type}</Text>
-            <Text>Punch In: {new Date(item.punchIn).toLocaleString()}</Text>
-            <Text>Punch Out: {new Date(item.punchOut).toLocaleString()}</Text>
-          </View>
-        )}
-      />
+      <LinearGradient colors={['#fa709a', '#fee140', '#ffeaa7']} style={styles.gradient}>
+        <FlatList
+          contentContainerStyle={styles.container}
+          data={punchHistory}
+          keyExtractor={(item, index) => index.toString()}
+          ListHeaderComponent={renderHeader}
+          renderItem={({ item, index }) => (
+            <Animated.View
+              style={[
+                styles.historyItem,
+                {
+                  opacity: fadeAnim,
+                  transform: [
+                    {
+                      translateX: fadeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [50, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.historyItemHeader}>
+                <View style={styles.typeBadge}>
+                  <Text style={styles.typeBadgeText}>Half Day</Text>
+                </View>
+                <Text style={styles.historyDate}>
+                  {new Date(item.punchIn).toLocaleDateString()}
+                </Text>
+              </View>
+              <View style={styles.historyTimes}>
+                <View style={styles.historyTimeItem}>
+                  <Text style={styles.historyTimeLabel}>In</Text>
+                  <Text style={styles.historyTimeValue}>
+                    {new Date(item.punchIn).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+                <Text style={styles.historyArrow}>→</Text>
+                <View style={styles.historyTimeItem}>
+                  <Text style={styles.historyTimeLabel}>Out</Text>
+                  <Text style={styles.historyTimeValue}>
+                    {new Date(item.punchOut).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+              </View>
+            </Animated.View>
+          )}
+        />
+      </LinearGradient>
     </PaperProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  gradient: { flex: 1 },
   container: {
     flexGrow: 1,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 20,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 10 },
-  info: { fontSize: 18, marginVertical: 5 },
-  manualContainer: {
-    width: '90%',
-    backgroundColor: '#fff',
-    padding: 15,
+  header: { alignItems: 'center', marginBottom: 30 },
+  icon: { fontSize: 48, marginBottom: 10 },
+  title: { fontSize: 36, fontWeight: '800', color: '#fff', letterSpacing: 1 },
+  subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.9)', marginTop: 5 },
+  punchCard: {
+    width: width - 40,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 24,
+    padding: 30,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  selectLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#555',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  dropdown: {
+    borderColor: '#e0e0e0',
     borderRadius: 12,
-    marginTop: 25,
-    elevation: 2,
+    backgroundColor: '#f9f9f9',
+  },
+  dropdownContainer: {
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+  },
+  dropdownText: { fontSize: 16, fontWeight: '500' },
+  dropdownPlaceholder: { color: '#999' },
+  punchButton: { alignItems: 'center' },
+  gradientButton: {
+    paddingVertical: 18,
+    paddingHorizontal: 50,
+    borderRadius: 16,
+    shadowColor: '#f5576c',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  punchButtonText: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  timeInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  timeBox: { alignItems: 'center', flex: 1 },
+  timeLabel: { fontSize: 12, color: '#888', marginBottom: 8, fontWeight: '600' },
+  timeValue: { fontSize: 28, fontWeight: '800', color: '#f5576c' },
+  divider: { width: 2, height: 50, backgroundColor: '#e0e0e0', marginHorizontal: 10 },
+  manualCard: {
+    width: width - 40,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 15 },
+  manualButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  dateButton: {
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#aaa',
-    borderRadius: 8,
-    padding: 10,
-    marginVertical: 6,
-    backgroundColor: '#f8f8f8',
+    borderColor: '#e0e0e0',
   },
-  dateButtonText: { fontSize: 16, color: '#333' },
-  deleteText: { color: 'red', fontWeight: 'bold', fontSize: 16 },
-  historyHeader: {
+  manualButtonText: { fontSize: 16, color: '#555', fontWeight: '500' },
+  arrow: { fontSize: 20, color: '#f5576c', fontWeight: '700' },
+  historyHeaderContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    width: '90%',
-    marginTop: 20,
+    width: width - 40,
+    marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    padding: 20,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  historyItem: { marginVertical: 5, padding: 10, backgroundColor: '#fff', borderRadius: 8, width: '90%' },
+  historyTitle: { fontSize: 20, fontWeight: '700', color: '#333' },
+  historySubtitle: { fontSize: 12, color: '#888', marginTop: 2 },
+  clearButton: {
+    backgroundColor: '#ffe5e5',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  clearText: { color: '#ff4444', fontWeight: '700', fontSize: 14 },
+  emptyState: { alignItems: 'center', paddingVertical: 40, width: width - 40 },
+  emptyIcon: { fontSize: 48, marginBottom: 10 },
+  emptyText: { fontSize: 16, color: '#888' },
+  historyItem: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f5576c',
+    width: width - 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  historyItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  typeBadge: { backgroundColor: '#f5576c', paddingVertical: 4, paddingHorizontal: 12, borderRadius: 6 },
+  typeBadgeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  historyDate: { fontSize: 13, color: '#888', fontWeight: '500' },
+  historyTimes: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  historyTimeItem: { alignItems: 'center' },
+  historyTimeLabel: { fontSize: 11, color: '#888', marginBottom: 4 },
+  historyTimeValue: { fontSize: 18, fontWeight: '700', color: '#333' },
+  historyArrow: { fontSize: 20, color: '#ccc', marginHorizontal: 10 },
 });
