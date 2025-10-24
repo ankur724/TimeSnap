@@ -1,45 +1,26 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import FullDayScreen from './src/screens/FullDayScreen';
+import HalfDayScreen from './src/screens/HalfDayScreen';
+import ShortLeaveScreen from './src/screens/ShortLeaveScreen';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+export type RootTabParamList = {
+  FullDay: undefined;
+  HalfDay: undefined;
+  ShortLeave: undefined;
+};
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+const Tab = createBottomTabNavigator<RootTabParamList>();
 
+export default function App() {
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
+    <NavigationContainer>
+      <Tab.Navigator initialRouteName="FullDay">
+        <Tab.Screen name="FullDay" component={FullDayScreen} options={{ title: 'Full Day' }} />
+        <Tab.Screen name="HalfDay" component={HalfDayScreen} options={{ title: 'Half Day' }} />
+        <Tab.Screen name="ShortLeave" component={ShortLeaveScreen} options={{ title: 'Short Leave' }} />
+      </Tab.Navigator>
+    </NavigationContainer>
   );
 }
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-
-export default App;
